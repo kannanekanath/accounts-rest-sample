@@ -22,7 +22,8 @@ public class InMemoryAccountService implements AccountService {
         return Stream.of(
                 new Account(1L, "user1", 45.0),
                 new Account(2L, "user2", 79.5),
-                new Account(3L, "user3", 125.4))
+                new Account(3L, "user3", 125.4),
+                new Account(4L, "user4", Double.MAX_VALUE))
                 .collect(Collectors.toMap(a -> a.getId().toString(), Function.<Account>identity()));
     }
 

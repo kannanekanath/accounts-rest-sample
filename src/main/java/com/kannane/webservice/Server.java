@@ -11,9 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static spark.Spark.exception;
-import static spark.Spark.get;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 public class Server {
 
@@ -27,11 +25,13 @@ public class Server {
     }
 
     public void startRouting() {
+        before((request, response) -> {
+            response.header("Content-Type", "application/json");
+        });
         get("/", (req, res) -> "This is the root of the app. Please visit individual paths/resources");
         get("/account/:id", ((req, res) -> {
             String id = req.params(":id");
             Optional<Account> account = accountService.findAccountById(id);
-            //Perhaps we can make this show 404 as that would be strictly REST
             account.orElseThrow(() -> new ServiceException("No account found for id [" + id + "]", 404));
             return account.get();
         }), new JsonTransformer());
@@ -43,7 +43,6 @@ public class Server {
         exception(Exception.class, (e, request, response) -> {
             int statusCode = 500;
             if (e instanceof ServiceException) {
-                //Application can indicate what status code to propogate
                 statusCode = ((ServiceException) e).getHttpErrorCode();
             }
             response.status(statusCode);

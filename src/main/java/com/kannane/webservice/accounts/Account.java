@@ -19,7 +19,6 @@ public class Account {
     }
 
     public void withdraw(Double amount) {
-        //Let us assume we cannot go into negative
         if (amount > balance) {
             throw new ServiceException("Could not withdraw [" + amount + "]. " +
                     "Balance available is only [" + balance + "]");
@@ -28,7 +27,9 @@ public class Account {
     }
 
     public void deposit(Double amount) {
-        //Let us assume the sum is not going to be near Double.MAX
+        if (balance + amount <= balance) {
+            throw new ServiceException("Rounding error with balance. Balance went too high");
+        }
         balance += amount;
     }
 
