@@ -1,6 +1,6 @@
-# Account REST Service
+# Accounts REST Service
 
-Demonstrates a simple Account JSON based REST service with minimal dependencies. Things to make note of
+Demonstrates a simple JSON based REST service with minimal dependencies. Things to make note of
 
    * Uses SparkJava a framework with the most minimal dependencies after comparison with Spring, JAXWS etc.
    * Used GSON which is the minimal json to object framework
