@@ -23,7 +23,7 @@ public class InMemoryAccountService implements AccountService {
         return doInLockedContext(globalLock, LockType.READ, () -> {
             if (accountsMap.containsKey(id)) {
                 return doInLockedContext(locksMap.get(id), LockType.READ,
-                        () -> Optional.of(accountsMap.get(id)));
+                        () -> Optional.of(getAccountInternal(id)));
             }
             return Optional.<Account>empty();
         });
@@ -55,15 +55,6 @@ public class InMemoryAccountService implements AccountService {
         });
     }
 
-    private Void transferMoneyInternal(Account fromAccount, Account toAccount, Double amount) {
-        if (toAccount.getBalance() + amount <= toAccount.getBalance()) {
-            throw new ServiceException("Rounding error with balance for [" + toAccount  + "]. Balance went too high");
-        }
-        fromAccount.withdraw(amount);
-        toAccount.deposit(amount);
-        return null;
-    }
-
     @Override
     public Account createAccount(Account account) {
         return doInLockedContext(globalLock, LockType.WRITE, () -> createAccountInternal(account));
@@ -80,9 +71,27 @@ public class InMemoryAccountService implements AccountService {
         });
     }
 
+    private Account getAccountInternal(Long id) {
+        Account account = accountsMap.get(id);
+        notifyObservers(CrudEventType.LOADED, account);
+        return account;
+    }
+
+    private Void transferMoneyInternal(Account fromAccount, Account toAccount, Double amount) {
+        if (toAccount.getBalance() + amount <= toAccount.getBalance()) {
+            throw new ServiceException("Rounding error with balance for [" + toAccount  + "]. Balance went too high");
+        }
+        fromAccount.withdraw(amount);
+        toAccount.deposit(amount);
+        notifyObservers(CrudEventType.UPDATED, fromAccount);
+        notifyObservers(CrudEventType.UPDATED, toAccount);
+        return null;
+    }
+
     private Account deleteAccountInternal(Account account) {
         Account deletedAccount = accountsMap.remove(account.getId());
         locksMap.remove(account.getId());
+        notifyObservers(CrudEventType.DELETED, deletedAccount);
         return deletedAccount;
     }
 
@@ -94,8 +103,19 @@ public class InMemoryAccountService implements AccountService {
                 account.getName(), account.getBalance());
         accountsMap.put(domainAccount.getId(), domainAccount);
         locksMap.put(domainAccount.getId(), new ReentrantReadWriteLock());
+        notifyObservers(CrudEventType.CREATED, domainAccount);
         return domainAccount;
     }
+
+    private void notifyObservers(CrudEventType eventType, Account account) {
+        listeners.forEach(l -> l.onEvent(eventType, account));
+    }
+
+    void addListener(InMemoryEventListener<Account> l) {
+        listeners.add(l);
+    }
+
+    private Collection<InMemoryEventListener<Account>> listeners = new ArrayList<>();
 
     private enum LockType {READ, WRITE}
 
