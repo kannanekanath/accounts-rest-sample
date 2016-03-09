@@ -8,20 +8,29 @@ import spark.Spark;
 
 import static com.jayway.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class AccountServiceDSLTest {
 
-    private Server server;
     private String path;
 
     @Before
     public void before() {
-        server = new Server();
+        Server server = new Server();
         server.startRouting();
         //Wait until we are ready to serve requests
         Spark.awaitInitialization();
         path = "http://localhost:4567";
+        insertAccount("user1", 45.0);
+        insertAccount("user2", 97.5);
+        insertAccount("user3", 89.0);
+        insertAccount("user4", Double.MAX_VALUE);
+    }
+
+    private void insertAccount(String name, Double balance) {
+        given().queryParam("name", name).queryParam("balance", balance).put(path + "/account")
+                .then().statusCode(is(200));
     }
 
     @After
@@ -41,6 +50,20 @@ public class AccountServiceDSLTest {
         given().
                 when().get(path + "/random").
                 then().statusCode(is(404));
+    }
+
+    @Test
+    public void testCreateAccount() {
+        given().
+            queryParam("name", "user20").
+            queryParam("balance", 45).
+        when().
+            put(path + "/account").
+        then().
+            statusCode(is(200)).
+            body("name", is("user20")).
+            body("balance", is((float) 45)).
+            body("id", notNullValue());
     }
 
     @Test
@@ -90,7 +113,7 @@ public class AccountServiceDSLTest {
         when().
             get(path + "/account/{fromAccount}").
         then().
-            body("balance", is((float) 99.5));
+            body("balance", is((float) 117.5));
     }
 
     @Test
@@ -117,7 +140,7 @@ public class AccountServiceDSLTest {
         given().
             pathParam("fromAccount", 1).
             pathParam("toAccount", 1).
-            pathParam("amount", 200000).
+            pathParam("amount", 1).
         when().
             post(path + "/transfer/from/{fromAccount}/to/{toAccount}/amount/{amount}").
         then().
@@ -134,5 +157,4 @@ public class AccountServiceDSLTest {
             statusCode(is(500)).
             body("message", startsWith("Rounding error with balance"));
     }
-
 }

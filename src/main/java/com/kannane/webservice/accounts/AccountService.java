@@ -4,7 +4,11 @@ import java.util.Optional;
 
 public interface AccountService {
 
-    Optional<Account> findAccountById(final String id);
+    Optional<Account> findAccount(final Long id);
 
-    void transferMoney(final String fromAccountId, final String toAccountId, final Double amount);
+    void transferMoney(final Long fromAccountId, final Long toAccountId, final Double amount);
+
+    Account createAccount(Account account);
+
+    Account deleteAccount(Long id);
 }

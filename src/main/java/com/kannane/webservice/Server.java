@@ -1,15 +1,12 @@
 package com.kannane.webservice;
 
 import com.google.gson.Gson;
-import com.kannane.webservice.accounts.Account;
-import com.kannane.webservice.accounts.AccountService;
+import com.kannane.webservice.accounts.AccountsController;
 import com.kannane.webservice.accounts.InMemoryAccountService;
 import com.kannane.webservice.response.JsonTransformer;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static spark.Spark.*;
 
@@ -18,28 +15,20 @@ public class Server {
     /**
      * In real world this will be via a Dependency Injection framework like GUICE *NOT SPRING*
      */
-    private AccountService accountService = new InMemoryAccountService();
+    private final AccountsController accountsController = new AccountsController(new InMemoryAccountService());
 
     public static void main(String[] args) {
         new Server().startRouting();
     }
 
     public void startRouting() {
-        before((request, response) -> {
-            response.header("Content-Type", "application/json");
-        });
+        before((request, response) -> response.header("Content-Type", "application/json"));
         get("/", (req, res) -> "This is the root of the app. Please visit individual paths/resources");
-        get("/account/:id", ((req, res) -> {
-            String id = req.params(":id");
-            Optional<Account> account = accountService.findAccountById(id);
-            account.orElseThrow(() -> new ServiceException("No account found for id [" + id + "]", 404));
-            return account.get();
-        }), new JsonTransformer());
-        post("/transfer/from/:from/to/:to/amount/:amount", ((req, res) -> {
-            accountService.transferMoney(req.params(":from"), req.params(":to"),
-                    Double.parseDouble(req.params(":amount")));
-            return Collections.singletonMap("success", "true");
-        }), new JsonTransformer());
+        get("/account/:id", (req, res) -> accountsController.loadAccount(req), new JsonTransformer());
+        put("/account", (req, res) -> accountsController.createAccount(req), new JsonTransformer());
+        delete("/account/:id", (req, res) -> accountsController.deleteAccount(req), new JsonTransformer());
+        post("/transfer/from/:from/to/:to/amount/:amount",
+                (req, res) -> accountsController.transferMoney(req), new JsonTransformer());
         exception(Exception.class, (e, request, response) -> {
             int statusCode = 500;
             if (e instanceof ServiceException) {

@@ -8,17 +8,13 @@ public class Account {
     private final String name;
     private Double balance;
 
-    public Account(Long id, String name) {
-        this(id, name, 0.0);
-    }
-
     public Account(Long id, String name, Double balance) {
         this.id = id;
         this.name = name;
         this.balance = balance;
     }
 
-    public void withdraw(Double amount) {
+    void withdraw(Double amount) {
         if (amount > balance) {
             throw new ServiceException("Could not withdraw [" + amount + "]. " +
                     "Balance available is only [" + balance + "]");
@@ -26,10 +22,7 @@ public class Account {
         balance -= amount;
     }
 
-    public void deposit(Double amount) {
-        if (balance + amount <= balance) {
-            throw new ServiceException("Rounding error with balance. Balance went too high");
-        }
+    void deposit(Double amount) {
         balance += amount;
     }
 
@@ -43,5 +36,15 @@ public class Account {
 
     public Double getBalance() {
         return balance;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("Account{");
+        sb.append("id=").append(id);
+        sb.append(", name='").append(name).append('\'');
+        sb.append(", balance=").append(balance);
+        sb.append('}');
+        return sb.toString();
     }
 }
