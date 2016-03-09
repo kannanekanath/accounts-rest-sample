@@ -6,11 +6,8 @@ import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static java.util.Collections.singleton;
 
 public class InMemoryAccountService implements AccountService {
 
@@ -20,12 +17,22 @@ public class InMemoryAccountService implements AccountService {
 
     @Override
     public Optional<Account> findAccount(Long id) {
-        return doInLockedContext(globalLock.readLock(), () -> {
+        globalLock.readLock().lock();
+        try {
             if (accountsMap.containsKey(id)) {
-                return doInLockedContext(locksMap.get(id).readLock(), () -> Optional.of(getAccountInternal(id)));
+                Lock accountLock = locksMap.get(id).readLock();
+                accountLock.lock();
+                try {
+                    return Optional.of(getAccountInternal(id));
+                } finally {
+                    accountLock.unlock();
+                }
             }
             return Optional.<Account>empty();
-        });
+        } finally {
+            globalLock.readLock().unlock();
+        }
+
     }
 
     @Override
@@ -33,7 +40,8 @@ public class InMemoryAccountService implements AccountService {
         if (Objects.equals(fromAccountId, toAccountId)) {
             throw new ServiceException("The from and to account should not be the same [" + fromAccountId + "]");
         }
-        doInLockedContext(globalLock.readLock(), () -> {
+        globalLock.readLock().lock();
+        try {
             if (!accountsMap.containsKey(fromAccountId)) {
                 throw new ServiceException("Account Id [" + fromAccountId + "] not found");
             }
@@ -51,25 +59,44 @@ public class InMemoryAccountService implements AccountService {
                     .map(locksMap::get)
                     .map(ReadWriteLock::writeLock)
                     .collect(Collectors.toList());
-            return doInLockedContext(accountLocks,
-                    () -> transferMoneyInternal(accountsMap.get(fromAccountId), accountsMap.get(toAccountId), amount));
-        });
+            accountLocks.forEach(Lock::lock);
+            try {
+                transferMoneyInternal(accountsMap.get(fromAccountId), accountsMap.get(toAccountId), amount);
+            } finally {
+                accountLocks.forEach(Lock::unlock);
+            }
+        } finally {
+            globalLock.readLock().unlock();
+        }
     }
 
     @Override
     public Account createAccount(Account account) {
-        return doInLockedContext(globalLock.writeLock(), () -> createAccountInternal(account));
+        globalLock.writeLock().lock();
+        try {
+            return createAccountInternal(account);
+        } finally {
+            globalLock.writeLock().unlock();
+        }
     }
 
     @Override
     public Account deleteAccount(Long id) {
-        return doInLockedContext(globalLock.writeLock(), () -> {
+        globalLock.writeLock().lock();
+        try {
             if (!accountsMap.containsKey(id)) {
                 throw new ServiceException("Account with id [" + id + "] not found");
             }
-            return doInLockedContext(locksMap.get(id).writeLock(),
-                    () -> deleteAccountInternal(accountsMap.get(id)));
-        });
+            Lock accountLock = locksMap.get(id).writeLock();
+            accountLock.lock();
+            try {
+                return deleteAccountInternal(accountsMap.get(id));
+            } finally {
+                accountLock.unlock();
+            }
+        } finally {
+            globalLock.writeLock().unlock();
+        }
     }
 
     private Account getAccountInternal(Long id) {
@@ -117,30 +144,5 @@ public class InMemoryAccountService implements AccountService {
     }
 
     private Collection<InMemoryEventListener<Account>> listeners = new ArrayList<>();
-
-
-    private <T> T doInLockedContext(Lock readWriteLock, Supplier<T> function) {
-        return doInLockedContext(singleton(readWriteLock), function);
-    }
-
-    /**
-     * This is a reusable utility method when you want to run a given function in the context of locks.
-     *
-     * ex: to read an account, read-lock the global lock, write-lock the account lock and read data.
-     *
-     * @param locks the read locks to use
-      @param function the function to execute in the context
-     * @param <T> the generic
-     * @return the returned value from function
-     */
-    private <T> T doInLockedContext(Collection<Lock> locks, Supplier<T> function) {
-        locks.stream().forEach(Lock::lock);
-        try {
-            return function.get();
-        } finally {
-            locks.stream().forEach(Lock::unlock);
-        }
-    }
-
 
 }
